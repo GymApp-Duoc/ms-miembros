@@ -20,11 +20,13 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                .csrf(AbstractHttpConfigurer::disable) // Se desactiva porque usamos tokens JWT
+                .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(auth -> auth
-                        // Aquí podrías agregar rutas públicas si las tuvieras, por ejemplo:
-                        // .requestMatchers("/api/miembros/publico/**").permitAll()
-                        .anyRequest().authenticated() // Obliga a que cualquier otra petición tenga un JWT válido
+
+                        .requestMatchers("/api/miembros/**").permitAll()
+
+
+                        .anyRequest().authenticated()
                 )
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
