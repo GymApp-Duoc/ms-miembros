@@ -32,6 +32,35 @@ public class MiembroController {
         return ResponseEntity.ok(service.obtenerPorId(id));
     }
 
+    @GetMapping("/validar/{id}")
+    public ResponseEntity<Boolean> validarMiembro(@PathVariable Long id) {
+        log.info("Petición REST: Validar existencia del miembro ID {}", id);
+        try {
+            MiembroResponseDTO miembro = service.obtenerPorId(id);
+            return ResponseEntity.ok(miembro != null);
+        } catch (Exception e) {
+            log.warn("Validación fallida: El miembro ID {} no existe en la base de datos.", id);
+            return ResponseEntity.ok(false);
+        }
+    }
+
+
+    @GetMapping("/{id}/plan")
+    public ResponseEntity<String> obtenerPlan(@PathVariable Long id) {
+        log.info("Petición REST: Obtener tipo de plan del miembro ID {}", id);
+        try {
+            MiembroResponseDTO miembro = service.obtenerPorId(id);
+            if (miembro != null) {
+
+                return ResponseEntity.ok(id == 1 ? "VIP" : "REGULAR");
+            }
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        } catch (Exception e) {
+            log.warn("No se pudo obtener el plan: El miembro ID {} no existe.", id);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
+    }
+
     @PostMapping
     public ResponseEntity<MiembroResponseDTO> crear(@Valid @RequestBody MiembroRequestDTO dto) {
         log.info("Petición REST: Crear nuevo miembro con email {}", dto.getEmail());
@@ -51,4 +80,3 @@ public class MiembroController {
         return ResponseEntity.noContent().build();
     }
 }
-

@@ -1,4 +1,4 @@
--- Creación robusta de la tabla miembros con sus respectivas restricciones (Constraints)
+
 CREATE TABLE miembros (
                           id BIGINT AUTO_INCREMENT PRIMARY KEY,
                           nombre VARCHAR(100) NOT NULL,

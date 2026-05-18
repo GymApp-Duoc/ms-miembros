@@ -16,7 +16,7 @@ public class JwtService {
     @Value("${jwt.secret}")
     private String secretKey;
 
-    // Genera la llave segura a partir de la contraseña en Base64 de tu application.properties
+
     private SecretKey getSigningKey() {
         byte[] keyBytes = java.util.Base64.getDecoder().decode(secretKey);
         return Keys.hmacShaKeyFor(keyBytes);
