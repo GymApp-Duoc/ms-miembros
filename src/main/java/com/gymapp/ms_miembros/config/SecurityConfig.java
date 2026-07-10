@@ -14,28 +14,19 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @EnableWebSecurity
 public class SecurityConfig {
 
-    // Inyección de tu filtro personalizado JWT siguiendo buenas prácticas
     @Autowired
     private JwtAuthenticationFilter jwtAuthFilter;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                // Deshabilitamos CSRF ya que usaremos tokens JWT
                 .csrf(AbstractHttpConfigurer::disable)
-
                 .authorizeHttpRequests(auth -> auth
-                        // Dejamos las rutas de Swagger completamente públicas
-                        .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**", "/api-docs/**").permitAll()
-
-                        // Todas las demás peticiones (como /api/miembros) requerirán token JWT
+                        // Aquí agregamos "/doc/**" para permitir la ruta personalizada de tu profe
+                        .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**", "/api-docs/**", "/doc/**").permitAll()
                         .anyRequest().authenticated()
                 )
-
-                // Configuramos la sesión como STATELESS (Sin estado), lo correcto para APIs con JWT
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-
-                // Agregamos tu filtro JWT antes del filtro estándar de Spring Security
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
