@@ -22,24 +22,25 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     @Autowired
     private JwtService jwtService;
 
+    // 1. ESTE MÉTODO ES LA CLAVE: Le dice al filtro que ignore Swagger por completo
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        String path = request.getRequestURI();
+        return path.startsWith("/swagger-ui") ||
+                path.startsWith("/v3/api-docs") ||
+                path.startsWith("/api-docs");
+    }
+
+    // 2. Aquí validamos el token solo para las rutas que SÍ lo necesitan (como /api/miembros)
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
-
-        String path = request.getServletPath();
-
-        if (path.startsWith("/api/miembros") ||
-                path.startsWith("/swagger-ui") ||
-                path.startsWith("/v3/api-docs") ||
-                path.startsWith("/api-docs")) {
-            filterChain.doFilter(request, response);
-            return;
-        }
 
         final String authHeader = request.getHeader("Authorization");
         final String jwt;
         final String username;
 
+        // Si no hay token, lo dejamos pasar. SecurityConfig se encargará de bloquearlo si la ruta era privada.
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             filterChain.doFilter(request, response);
             return;
@@ -56,6 +57,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     );
                     authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 
+                    // Token válido: autorizamos la petición
                     SecurityContextHolder.getContext().setAuthentication(authToken);
                 }
             }
