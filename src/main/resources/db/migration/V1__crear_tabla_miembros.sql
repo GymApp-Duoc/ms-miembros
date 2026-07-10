@@ -1,10 +1,11 @@
--- Creación robusta de la tabla miembros con sus respectivas restricciones (Constraints)
+-- Creación robusta de la tabla miembros adaptada a PostgreSQL
 CREATE TABLE miembros (
-                          id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                          id BIGSERIAL PRIMARY KEY,
                           nombre VARCHAR(100) NOT NULL,
                           apellido VARCHAR(100) NOT NULL,
-                          email VARCHAR(150) NOT NULL UNIQUE, -- Unique garantiza que la BD no acepte correos duplicados
+                          email VARCHAR(150) NOT NULL UNIQUE,
                           telefono VARCHAR(20),
                           fecha_registro DATE NOT NULL,
-                          activo BOOLEAN NOT NULL DEFAULT TRUE -- Por defecto, todo miembro nace activo
+                          activo BOOLEAN NOT NULL DEFAULT TRUE
 );
+

@@ -1,5 +1,6 @@
 package com.gymapp.ms_miembros.service;
 
+import com.gymapp.ms_miembros.assembler.MiembroAssembler;
 import com.gymapp.ms_miembros.client.GamificacionClient;
 import com.gymapp.ms_miembros.client.NotificacionClient;
 import com.gymapp.ms_miembros.dto.MiembroRequestDTO;
@@ -8,8 +9,8 @@ import com.gymapp.ms_miembros.exception.BusinessException;
 import com.gymapp.ms_miembros.exception.RecursoNoEncontradoException;
 import com.gymapp.ms_miembros.model.Miembro;
 import com.gymapp.ms_miembros.repository.MiembroRepository;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,19 +22,30 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class MiembroServiceImpl implements MiembroService {
 
     private final MiembroRepository repository;
     private final GamificacionClient gamificacionClient;
     private final NotificacionClient notificacionClient;
+    private final MiembroAssembler assembler;
+
+    @Autowired
+    public MiembroServiceImpl(MiembroRepository repository,
+                              GamificacionClient gamificacionClient,
+                              NotificacionClient notificacionClient,
+                              MiembroAssembler assembler) {
+        this.repository = repository;
+        this.gamificacionClient = gamificacionClient;
+        this.notificacionClient = notificacionClient;
+        this.assembler = assembler;
+    }
 
     @Override
     @Transactional(readOnly = true)
     public List<MiembroResponseDTO> listarTodos() {
-        log.info("Consultando la lista de miembros ACTIVOS en el sistema");
+        log.info("Consultando la lista de miembros ACTIVOS");
         return repository.findByActivoTrue().stream()
-                .map(this::mapearADto)
+                .map(assembler::toResponseDTO)
                 .collect(Collectors.toList());
     }
 
@@ -43,7 +55,7 @@ public class MiembroServiceImpl implements MiembroService {
         log.info("Buscando miembro activo por ID: {}", id);
         Miembro miembro = repository.findByIdAndActivoTrue(id)
                 .orElseThrow(() -> new RecursoNoEncontradoException("Miembro no encontrado o inactivo con ID: " + id));
-        return mapearADto(miembro);
+        return assembler.toResponseDTO(miembro);
     }
 
     @Override
@@ -55,22 +67,13 @@ public class MiembroServiceImpl implements MiembroService {
             throw new BusinessException("El correo electrónico ya está registrado en el sistema.");
         }
 
-        Miembro miembro = new Miembro(
-                null,
-                dto.getNombre(),
-                dto.getApellido(),
-                dto.getEmail(),
-                dto.getTelefono(),
-                LocalDate.now(),
-                true
-        );
-
+        Miembro miembro = assembler.toEntity(dto);
         Miembro guardado = repository.save(miembro);
-        log.info("Miembro creado exitosamente con ID: {}", guardado.getId());
 
+        log.info("Miembro creado exitosamente con ID: {}", guardado.getId());
         enviarRecompensasYBienvenida(guardado);
 
-        return mapearADto(guardado);
+        return assembler.toResponseDTO(guardado);
     }
 
     @Override
@@ -79,10 +82,10 @@ public class MiembroServiceImpl implements MiembroService {
         log.info("Iniciando actualización para el miembro ID: {}", id);
 
         Miembro existente = repository.findByIdAndActivoTrue(id)
-                .orElseThrow(() -> new RecursoNoEncontradoException("Miembro no encontrado o inactivo para actualizar."));
+                .orElseThrow(() -> new RecursoNoEncontradoException("Miembro no encontrado o inactivo."));
 
         if (!existente.getEmail().equalsIgnoreCase(dto.getEmail()) && repository.existsByEmailIgnoreCase(dto.getEmail())) {
-            throw new BusinessException("El nuevo correo electrónico ya está en uso por otro miembro.");
+            throw new BusinessException("El nuevo correo electrónico ya está en uso.");
         }
 
         existente.setNombre(dto.getNombre());
@@ -90,21 +93,62 @@ public class MiembroServiceImpl implements MiembroService {
         existente.setEmail(dto.getEmail());
         existente.setTelefono(dto.getTelefono());
 
-        log.info("Miembro ID {} actualizado correctamente en la base de datos.", id);
-        return mapearADto(repository.save(existente));
+        return assembler.toResponseDTO(repository.save(existente));
     }
 
     @Override
     @Transactional
     public void eliminar(Long id) {
         log.info("Aplicando borrado lógico al miembro ID: {}", id);
-
         Miembro miembro = repository.findByIdAndActivoTrue(id)
-                .orElseThrow(() -> new RecursoNoEncontradoException("Miembro no encontrado o ya se encuentra inactivo."));
+                .orElseThrow(() -> new RecursoNoEncontradoException("Miembro no encontrado o ya inactivo."));
 
         miembro.setActivo(false);
         repository.save(miembro);
-        log.info("Miembro ID {} desactivado correctamente (activo = false).", id);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long contarMiembrosActivos() {
+        log.info("Generando reporte: Conteo total de miembros activos");
+        return repository.countByActivoTrue();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<MiembroResponseDTO> listarMiembrosInactivos() {
+        log.info("Generando reporte: Lista de miembros inactivos (Bajas)");
+        return repository.findByActivoFalse().stream()
+                .map(assembler::toResponseDTO)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<MiembroResponseDTO> listarMiembrosRecientes(int dias) {
+        log.info("Generando reporte: Miembros registrados en los últimos {} días", dias);
+        LocalDate fechaCorte = LocalDate.now().minusDays(dias);
+        return repository.findByFechaRegistroAfter(fechaCorte).stream()
+                .map(assembler::toResponseDTO)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<MiembroResponseDTO> listarMiembrosPorFecha(LocalDate fecha) {
+        log.info("Generando reporte: Miembros registrados en la fecha {}", fecha);
+        return repository.findByFechaRegistro(fecha).stream()
+                .map(assembler::toResponseDTO)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<MiembroResponseDTO> listarMiembrosPorDominioEmail(String dominio) {
+        log.info("Generando reporte: Miembros con dominio de correo {}", dominio);
+        return repository.findByEmailContainingIgnoreCase(dominio).stream()
+                .map(assembler::toResponseDTO)
+                .collect(Collectors.toList());
     }
 
     private void enviarRecompensasYBienvenida(Miembro miembro) {
@@ -114,33 +158,18 @@ public class MiembroServiceImpl implements MiembroService {
             evento.put("accion", "REGISTRO_NUEVO");
             evento.put("puntosBase", 50);
             gamificacionClient.enviarEvento(evento);
-            log.info("Puntos de bienvenida enviados al microservicio de Gamificación para el miembro {}", miembro.getId());
         } catch (Exception e) {
-            log.warn("No se pudo establecer comunicación con Gamificación: {}", e.getMessage());
+            log.warn("Fallo de comunicación con Gamificación: {}", e.getMessage());
         }
 
         try {
             Map<String, Object> notificacion = new HashMap<>();
             notificacion.put("miembroId", miembro.getId());
             notificacion.put("titulo", "¡Bienvenido a GymApp!");
-            notificacion.put("mensaje", "Hola " + miembro.getNombre() + ", tu cuenta ha sido creada con éxito.");
+            notificacion.put("mensaje", "Hola " + miembro.getNombre() + ", tu cuenta ha sido creada.");
             notificacionClient.enviarNotificacion(notificacion);
-            log.info("Notificación de bienvenida enviada al microservicio de Notificaciones.");
         } catch (Exception e) {
-            log.warn("No se pudo establecer comunicación con Notificaciones: {}", e.getMessage());
+            log.warn("Fallo de comunicación con Notificaciones: {}", e.getMessage());
         }
     }
-
-    private MiembroResponseDTO mapearADto(Miembro m) {
-        return MiembroResponseDTO.builder()
-                .id(m.getId())
-                .nombre(m.getNombre())
-                .apellido(m.getApellido())
-                .email(m.getEmail())
-                .telefono(m.getTelefono())
-                .fechaRegistro(m.getFechaRegistro())
-                .activo(m.isActivo())
-                .build();
-    }
 }
-
